@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
 import { access, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { initialize } from "./config/init.js";
@@ -108,7 +108,13 @@ async function startCommand(commandArgs: string[]): Promise<void> {
   }
 
   const herdr = new HerdrClient();
-  const workspace = await herdr.createIndependentWorkboard();
+  const created = await herdr.createWorkspace(
+    selected.path,
+    `Taya · ${basename(selected.path)}`,
+    { TAYA_HOME: home },
+  );
+  const { workspace, pane } = created;
+  await herdr.attachWorkboard(workspace.workspace_id);
   const launcher = cliLauncher();
   const supervisorPane = await herdr.createNamedTab(
     workspace.workspace_id, "supervisor", selected.path, { TAYA_HOME: home }, false,
@@ -116,9 +122,6 @@ async function startCommand(commandArgs: string[]): Promise<void> {
   await herdr.runInPane(
     supervisorPane.pane_id,
     [...launcher, "supervise", "--workspace", workspace.workspace_id].map(shellQuote).join(" "),
-  );
-  const pane = await herdr.createNamedTab(
-    workspace.workspace_id, "assistant", selected.path, { TAYA_HOME: home }, true,
   );
   const workflow = resolve(home, "workflows", "coding-standard.yaml");
   const bootstrap = [

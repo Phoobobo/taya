@@ -18,12 +18,12 @@ There is one named Herdr session per Taya installation:
 herdr --session taya
 ```
 
-Each engineering task gets one Herdr workspace. Its panes have stable role names within that workspace:
+Each engineering task gets one Herdr workspace. Taya creates the workspace itself so `assistant` is always the first tab, then attaches Workboard without reordering existing tabs. Panes have stable role names within that workspace:
 
 ```text
-assistant
-supervisor
+assistant  # first tab
 workboard
+supervisor
 architect
 coder
 qa
@@ -159,9 +159,9 @@ Required CLI behavior:
 - idempotent request IDs
 - automatic resolution of the current Herdr workspace
 
-At task creation, Taya invokes `herdr plugin action invoke phoobobo.workboard.new` to create a fresh board even when the repository already has another board. It then passes the selected declarative workflow to Workboard. Workboard stores a task-level snapshot so later template edits cannot mutate active work.
+At task creation, Taya creates a fresh Herdr workspace with `assistant` as tab 1, then invokes `herdr plugin action invoke phoobobo.workboard.attach` to append Workboard and its state tabs without replacing or reordering existing tabs. It then passes the selected declarative workflow to Workboard. Workboard stores a task-level snapshot so later template edits cannot mutate active work.
 
-The workspace-scoped workflow contract and independent-board action are implemented separately in herdr-workboard PR #1. Taya depends only on those public action and CLI contracts.
+Taya depends only on Workboard's public actions and workspace-scoped CLI contract.
 
 ## Worktree and transient artifacts
 
