@@ -1,0 +1,28 @@
+name: coding-small
+description: Small, low-risk coding task handled by one coder and verified before submission.
+stages:
+  - name: implementing
+    agent: coder
+    success_message: implementation.ready
+    terminal: false
+  - name: qa
+    agent: qa
+    output: .taya/qa.md
+    success_message: qa.passed
+    retry_message: qa.failed
+    retry_to: implementing
+    terminal: false
+  - name: submit
+    agent: coder
+    success_message: mr.created
+    terminal: false
+  - name: ci
+    agent: assistant
+    success_message: ci.passed
+    retry_message: ci.failed
+    retry_to: implementing
+    terminal: false
+  - name: merged
+    agent: assistant
+    success_message: task.completed
+    terminal: true

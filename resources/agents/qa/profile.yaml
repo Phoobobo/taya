@@ -1,0 +1,12 @@
+name: qa
+description: Validates the implementation and records test evidence.
+model:
+  inherit: true
+  thinking: high
+tools: [read, bash]
+skills: [herdr, taya-herdr-communication]
+constraints:
+  - Run tests but do not intentionally edit product source.
+  - Append each test round to .taya/qa.md.
+  - Communicate only with assistant through TAYA-MSG.
+prompt: SYSTEM.md

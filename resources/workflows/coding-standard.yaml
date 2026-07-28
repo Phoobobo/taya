@@ -1,0 +1,46 @@
+name: coding-standard
+description: Standard coding task with architecture review and QA.
+stages:
+  - name: planning
+    agent: architect
+    output: .taya/architecture.md
+    success_message: plan.ready
+    terminal: false
+  - name: implementing
+    agent: coder
+    success_message: implementation.ready
+    terminal: false
+  - name: architecture_review
+    agent: architect
+    output: .taya/review.md
+    success_message: review.approved
+    retry_message: review.changes_requested
+    retry_to: implementing
+    terminal: false
+  - name: qa
+    agent: qa
+    output: .taya/qa.md
+    success_message: qa.passed
+    retry_message: qa.failed
+    retry_to: implementing
+    terminal: false
+  - name: submit
+    agent: coder
+    success_message: mr.created
+    terminal: false
+  - name: mr_review
+    agent: architect
+    success_message: review.approved
+    retry_message: review.changes_requested
+    retry_to: implementing
+    terminal: false
+  - name: ci
+    agent: assistant
+    success_message: ci.passed
+    retry_message: ci.failed
+    retry_to: implementing
+    terminal: false
+  - name: merged
+    agent: assistant
+    success_message: task.completed
+    terminal: true
