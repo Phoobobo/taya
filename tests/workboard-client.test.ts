@@ -34,18 +34,6 @@ describe("WorkboardClient", () => {
     expect(error).toMatchObject({ code: "INVALID_TRANSITION", exitCode: 4, message: "not allowed" });
   });
 
-  it("creates a board and reads its ids synchronously", async () => {
-    const board = {
-      id: "b1", name: "repo", cwd: "/repo", workspace_id: "w2", board_pane_id: "p1",
-      agent_cmd: [], states: [], task_count: 0,
-    };
-    const runner = vi.fn<CommandRunner>(async () => ({ stdout: JSON.stringify({ ok: true, board }), stderr: "", exitCode: 0 }));
-    const client = new WorkboardClient("herdr-workboard", runner);
-
-    await expect(client.boardNew({ name: "repo", cwd: "/repo" })).resolves.toEqual(board);
-    expect(runner).toHaveBeenCalledWith("herdr-workboard", ["board", "new", "--name", "repo", "--cwd", "/repo", "--json"]);
-  });
-
   it("creates a task addressed at an explicit board", async () => {
     const task = {
       id: "t1", seq: 1, title: "Do it", state_id: "s1", state: "todo",
@@ -56,6 +44,18 @@ describe("WorkboardClient", () => {
 
     await expect(client.createTask("Do it", { board: "b1" })).resolves.toEqual(task);
     expect(runner).toHaveBeenCalledWith("herdr-workboard", ["task", "add", "Do it", "--board", "b1", "--json"]);
+  });
+
+  it("creates a task addressed at an explicit workspace when no board id is known", async () => {
+    const task = {
+      id: "t1", seq: 1, title: "Do it", state_id: "s1", state: "todo",
+      pane_id: null, archived: false, created_at: 0, updated_at: 0,
+    };
+    const runner = vi.fn<CommandRunner>(async () => ({ stdout: JSON.stringify({ ok: true, task }), stderr: "", exitCode: 0 }));
+    const client = new WorkboardClient("herdr-workboard", runner);
+
+    await expect(client.createTask("Do it", { workspace: "w2" })).resolves.toEqual(task);
+    expect(runner).toHaveBeenCalledWith("herdr-workboard", ["task", "add", "Do it", "--workspace", "w2", "--json"]);
   });
 
   it("lists, moves, and archives tasks", async () => {

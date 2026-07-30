@@ -19,24 +19,6 @@ export interface WorkboardStatus {
   }>;
 }
 
-export interface BoardStateSummary {
-  id: string;
-  name: string;
-  tab_id: string | null;
-  task_count: number;
-}
-
-export interface BoardSummary {
-  id: string;
-  name: string;
-  cwd: string;
-  workspace_id: string;
-  board_pane_id: string | null;
-  agent_cmd: string[];
-  states: BoardStateSummary[];
-  task_count: number;
-}
-
 export interface TaskView {
   id: string;
   seq: number;
@@ -72,11 +54,18 @@ export interface CreateTaskOptions {
   body?: string;
   state?: string;
   board?: string;
+  workspace?: string;
 }
 
 export interface ListTasksOptions {
   state?: string;
   all?: boolean;
+}
+
+function addressingArgs(options: { board?: string; workspace?: string }): string[] {
+  if (options.board) return ["--board", options.board];
+  if (options.workspace) return ["--workspace", options.workspace];
+  return [];
 }
 
 export class WorkboardClient {
@@ -91,13 +80,13 @@ export class WorkboardClient {
 
   initialize(
     workflowPath: string,
-    options: { taskId?: string; force?: boolean; board?: string } = {},
+    options: { taskId?: string; force?: boolean; board?: string; workspace?: string } = {},
   ): Promise<WorkboardStatus> {
     return this.callFor<WorkboardStatus>([
       "workflow", "init", workflowPath,
       ...(options.taskId ? ["--task", options.taskId] : []),
       ...(options.force ? ["--force"] : []),
-      ...(options.board ? ["--board", options.board] : []),
+      ...addressingArgs(options),
       "--json",
     ], "status");
   }
@@ -118,21 +107,12 @@ export class WorkboardClient {
     ], "status");
   }
 
-  boardNew(options: { name?: string; cwd?: string } = {}): Promise<BoardSummary> {
-    return this.callFor<BoardSummary>([
-      "board", "new",
-      ...(options.name ? ["--name", options.name] : []),
-      ...(options.cwd ? ["--cwd", options.cwd] : []),
-      "--json",
-    ], "board");
-  }
-
   createTask(title: string, options: CreateTaskOptions = {}): Promise<TaskView> {
     return this.callFor<TaskView>([
       "task", "add", title,
       ...(options.body ? ["--body", options.body] : []),
       ...(options.state ? ["--state", options.state] : []),
-      ...(options.board ? ["--board", options.board] : []),
+      ...addressingArgs(options),
       "--json",
     ], "task");
   }

@@ -110,18 +110,24 @@ async function startCommand(commandArgs: string[]): Promise<void> {
 
   const herdr = new HerdrClient();
   const workboard = new WorkboardClient();
-  const board = await workboard.boardNew({ name: basename(selected.path), cwd: selected.path });
-  const task = await workboard.createTask(`Engineering task in ${basename(selected.path)}`, { board: board.id });
+  const created = await herdr.createWorkspace(
+    selected.path,
+    `Taya · ${basename(selected.path)}`,
+    { TAYA_HOME: home },
+  );
+  const { workspace, pane } = created;
+  await herdr.attachWorkboard(workspace.workspace_id);
+  const task = await workboard.createTask(
+    `Engineering task in ${basename(selected.path)}`,
+    { workspace: workspace.workspace_id },
+  );
   const launcher = cliLauncher();
   const supervisorPane = await herdr.createNamedTab(
-    board.workspace_id, "supervisor", selected.path, { TAYA_HOME: home }, false,
+    workspace.workspace_id, "supervisor", selected.path, { TAYA_HOME: home }, false,
   );
   await herdr.runInPane(
     supervisorPane.pane_id,
-    [...launcher, "supervise", "--workspace", board.workspace_id].map(shellQuote).join(" "),
-  );
-  const pane = await herdr.createNamedTab(
-    board.workspace_id, "assistant", selected.path, { TAYA_HOME: home }, true,
+    [...launcher, "supervise", "--workspace", workspace.workspace_id].map(shellQuote).join(" "),
   );
   const workflow = resolve(home, "workflows", "coding-standard.yaml");
   const bootstrap = [
@@ -130,7 +136,7 @@ async function startCommand(commandArgs: string[]): Promise<void> {
   ].map(shellQuote).join(" ").replace("'&&'", "&&");
   await herdr.runInPane(pane.pane_id, bootstrap);
   if (pane.tab_id) await herdr.focusTab(pane.tab_id);
-  console.log(`Started Taya assistant in Herdr workspace ${board.workspace_id}`);
+  console.log(`Started Taya assistant in Herdr workspace ${workspace.workspace_id}`);
 }
 
 async function assistantCommand(commandArgs: string[]): Promise<void> {

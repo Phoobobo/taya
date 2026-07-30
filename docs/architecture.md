@@ -18,12 +18,12 @@ There is one named Herdr session per Taya installation:
 herdr --session taya
 ```
 
-Each engineering task gets one Herdr workspace. Its panes have stable role names within that workspace:
+Each engineering task gets one Herdr workspace. Taya creates the workspace itself so `assistant` is always the first tab, then attaches Workboard without reordering existing tabs. Panes have stable role names within that workspace:
 
 ```text
-assistant
-supervisor
+assistant  # first tab
 workboard
+supervisor
 architect
 coder
 qa
@@ -145,8 +145,7 @@ herdr-workboard is separately owned and may be changed directly. Its responsibil
 Taya calls a workspace-scoped CLI; it never edits board JSON directly. The commands Taya depends on:
 
 ```bash
-herdr-workboard board new --name <label> --cwd <dir> --json
-herdr-workboard task add <title> [--body <t>] [--state <id|name>] --board <id> --json
+herdr-workboard task add <title> [--body <t>] [--state <id|name>] --workspace <id> --json
 herdr-workboard task list [--state <s>] [--all] --json
 herdr-workboard task move <t> --state <s> --json
 herdr-workboard task archive <t> [--close-pane] --json
@@ -158,7 +157,7 @@ herdr-workboard run start architect --json
 herdr-workboard run finish architect --result passed --json
 ```
 
-`board new` builds the workspace synchronously and returns its ids in the response, so Taya never polls `workspace list` to discover what got created. Calls issued from outside the board's own pane — such as `taya start` creating the task before any pane exists in that workspace — pass `--board <id>` explicitly rather than relying on the invoking pane's context. `workflow init --task <id>` binds a card to the workflow: each transition then moves that card into the stage's column and reports it as a `card` object on the response.
+Taya owns workspace creation (see Runtime topology), so the task-creation call happens before any pane exists inside that workspace and addresses it explicitly with `--workspace <id>` (or `--board <id>`, when the board id is already known) rather than relying on the invoking pane's own context. `workflow init --task <id>` binds a card to the workflow: each transition then moves that card into the stage's column and reports it as a `card` object on the response.
 
 Required CLI behavior:
 
@@ -168,9 +167,9 @@ Required CLI behavior:
 - idempotent request IDs
 - automatic resolution of the current Herdr workspace
 
-At task creation, Taya invokes `herdr plugin action invoke phoobobo.workboard.new` to create a fresh board even when the repository already has another board. It then passes the selected declarative workflow to Workboard. Workboard stores a task-level snapshot so later template edits cannot mutate active work.
+At task creation, Taya creates a fresh Herdr workspace with `assistant` as tab 1, then invokes `herdr plugin action invoke phoobobo.workboard.attach` to append Workboard and its state tabs without replacing or reordering existing tabs. It then passes the selected declarative workflow to Workboard. Workboard stores a task-level snapshot so later template edits cannot mutate active work.
 
-The workspace-scoped workflow contract and independent-board action are implemented separately in herdr-workboard PR #1. Taya depends only on those public action and CLI contracts.
+Taya depends only on Workboard's public actions and workspace-scoped CLI contract.
 
 ## Worktree and transient artifacts
 

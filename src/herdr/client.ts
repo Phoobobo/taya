@@ -29,6 +29,10 @@ interface WorkspaceListResult {
   result: { workspaces: HerdrWorkspace[] };
 }
 
+interface WorkspaceCreateResult {
+  result: { workspace: HerdrWorkspace; tab: { tab_id: string }; root_pane: HerdrPane };
+}
+
 interface TabCreateResult {
   result: { tab?: { tab_id: string }; root_pane: HerdrPane };
 }
@@ -46,6 +50,57 @@ export class HerdrClient {
 
   async workspaces(): Promise<HerdrWorkspace[]> {
     return (await this.json<WorkspaceListResult>(["workspace", "list"])).result.workspaces;
+  }
+
+  async createWorkspace(
+    cwd: string,
+    label: string,
+    env: Record<string, string> = {},
+  ): Promise<{ workspace: HerdrWorkspace; pane: HerdrPane }> {
+    const environmentArgs = Object.entries(env).flatMap(([key, value]) => ["--env", `${key}=${value}`]);
+    const created = await this.json<WorkspaceCreateResult>([
+      "workspace", "create", "--cwd", cwd, "--label", label, ...environmentArgs, "--focus",
+    ]);
+    const pane = { ...created.result.root_pane, tab_id: created.result.tab.tab_id, label: "assistant" };
+    await this.ok(["tab", "rename", created.result.tab.tab_id, "assistant"]);
+    await this.ok(["pane", "rename", pane.pane_id, "assistant"]);
+    return { workspace: created.result.workspace, pane };
+  }
+
+  async attachWorkboard(workspaceId: string, timeoutMs = 10_000): Promise<void> {
+    await this.ok(["workspace", "focus", workspaceId]);
+    await this.ok(["plugin", "action", "invoke", "phoobobo.workboard.attach"]);
+    await this.waitForWorkspaceStable(workspaceId, timeoutMs);
+  }
+
+  private async waitForWorkspaceStable(workspaceId: string, timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let stableSignature: string | undefined;
+    let stableReads = 0;
+    while (Date.now() < deadline) {
+      const workspace = (await this.workspaces()).find((candidate) => candidate.workspace_id === workspaceId);
+      if (workspace) {
+        const ready = await this.workspaceStableRead(workspace, stableSignature, stableReads);
+        stableSignature = ready.signature;
+        stableReads = ready.stableReads;
+        if (ready.done) return;
+      }
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+    }
+    throw new Error("Timed out waiting for Workboard attachment");
+  }
+
+  private async workspaceStableRead(
+    workspace: HerdrWorkspace,
+    previousSignature: string | undefined,
+    previousStableReads: number,
+  ): Promise<{ signature: string; stableReads: number; done: boolean }> {
+    const hasBoardPane = (await this.panes()).some(
+      (pane) => pane.workspace_id === workspace.workspace_id && pane.label === "workboard",
+    );
+    const signature = `${workspace.pane_count ?? "?"}:${workspace.tab_count ?? "?"}`;
+    const stableReads = hasBoardPane && signature === previousSignature ? previousStableReads + 1 : 0;
+    return { signature, stableReads, done: stableReads >= 2 };
   }
 
   async createNamedTab(
