@@ -14,6 +14,7 @@ import { HerdrClient } from "./herdr/client.js";
 import { supervise } from "./supervisor.js";
 import { addWorkdir } from "./workdirs/manage.js";
 import { recommendWorkdirs } from "./workdirs/recommend.js";
+import { WorkboardClient } from "./workboard/client.js";
 
 const args = process.argv.slice(2);
 const command = args[0]?.startsWith("-") ? "start" : (args.shift() ?? "start");
@@ -108,6 +109,7 @@ async function startCommand(commandArgs: string[]): Promise<void> {
   }
 
   const herdr = new HerdrClient();
+  const workboard = new WorkboardClient();
   const created = await herdr.createWorkspace(
     selected.path,
     `Taya · ${basename(selected.path)}`,
@@ -115,6 +117,10 @@ async function startCommand(commandArgs: string[]): Promise<void> {
   );
   const { workspace, pane } = created;
   await herdr.attachWorkboard(workspace.workspace_id);
+  const task = await workboard.createTask(
+    `Engineering task in ${basename(selected.path)}`,
+    { workspace: workspace.workspace_id },
+  );
   const launcher = cliLauncher();
   const supervisorPane = await herdr.createNamedTab(
     workspace.workspace_id, "supervisor", selected.path, { TAYA_HOME: home }, false,
@@ -125,7 +131,7 @@ async function startCommand(commandArgs: string[]): Promise<void> {
   );
   const workflow = resolve(home, "workflows", "coding-standard.yaml");
   const bootstrap = [
-    "herdr-workboard", "workflow", "init", workflow, "--json",
+    "herdr-workboard", "workflow", "init", workflow, "--task", task.id, "--json",
     "&&", ...launcher, "assistant", "--workdir", selected.path,
   ].map(shellQuote).join(" ").replace("'&&'", "&&");
   await herdr.runInPane(pane.pane_id, bootstrap);

@@ -73,28 +73,6 @@ export class HerdrClient {
     await this.waitForWorkspaceStable(workspaceId, timeoutMs);
   }
 
-  async createIndependentWorkboard(timeoutMs = 10_000): Promise<HerdrWorkspace> {
-    const existing = new Set((await this.workspaces()).map((workspace) => workspace.workspace_id));
-    await this.ok(["plugin", "action", "invoke", "phoobobo.workboard.new"]);
-    const deadline = Date.now() + timeoutMs;
-    let createdId: string | undefined;
-    let stableSignature: string | undefined;
-    let stableReads = 0;
-    while (Date.now() < deadline) {
-      const workspaces = await this.workspaces();
-      createdId ??= workspaces.find((workspace) => !existing.has(workspace.workspace_id))?.workspace_id;
-      const created = workspaces.find((workspace) => workspace.workspace_id === createdId);
-      if (created) {
-        const ready = await this.workspaceStableRead(created, stableSignature, stableReads);
-        stableSignature = ready.signature;
-        stableReads = ready.stableReads;
-        if (ready.done) return created;
-      }
-      await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
-    }
-    throw new Error("Timed out waiting for Workboard workspace initialization");
-  }
-
   private async waitForWorkspaceStable(workspaceId: string, timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     let stableSignature: string | undefined;
