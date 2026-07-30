@@ -6,6 +6,8 @@ export type RunResult = "passed" | "failed" | "blocked";
 export interface WorkboardStatus {
   current_stage: string;
   terminal: boolean;
+  task_id?: string;
+  card?: { task_id: string; state?: string; moved: boolean; reason?: string };
   current_runs: Array<{ id: string; role: string; status: "running" }>;
   runs: Array<{
     id: string;
@@ -17,9 +19,41 @@ export interface WorkboardStatus {
   }>;
 }
 
+export interface BoardStateSummary {
+  id: string;
+  name: string;
+  tab_id: string | null;
+  task_count: number;
+}
+
+export interface BoardSummary {
+  id: string;
+  name: string;
+  cwd: string;
+  workspace_id: string;
+  board_pane_id: string | null;
+  agent_cmd: string[];
+  states: BoardStateSummary[];
+  task_count: number;
+}
+
+export interface TaskView {
+  id: string;
+  seq: number;
+  title: string;
+  body?: string;
+  state_id: string;
+  state: string;
+  pane_id: string | null;
+  agent_cmd?: string[];
+  archived: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
 interface SuccessResponse {
   ok: true;
-  status: WorkboardStatus;
+  [key: string]: unknown;
 }
 
 interface ErrorResponse {
@@ -34,6 +68,17 @@ export class WorkboardError extends Error {
   }
 }
 
+export interface CreateTaskOptions {
+  body?: string;
+  state?: string;
+  board?: string;
+}
+
+export interface ListTasksOptions {
+  state?: string;
+  all?: boolean;
+}
+
 export class WorkboardClient {
   constructor(
     private readonly executable = "herdr-workboard",
@@ -41,26 +86,82 @@ export class WorkboardClient {
   ) {}
 
   status(): Promise<WorkboardStatus> {
-    return this.call(["status", "--json"]);
+    return this.callFor<WorkboardStatus>(["status", "--json"], "status");
   }
 
-  initialize(workflowPath: string, force = false): Promise<WorkboardStatus> {
-    return this.call(["workflow", "init", workflowPath, ...(force ? ["--force"] : []), "--json"]);
+  initialize(
+    workflowPath: string,
+    options: { taskId?: string; force?: boolean; board?: string } = {},
+  ): Promise<WorkboardStatus> {
+    return this.callFor<WorkboardStatus>([
+      "workflow", "init", workflowPath,
+      ...(options.taskId ? ["--task", options.taskId] : []),
+      ...(options.force ? ["--force"] : []),
+      ...(options.board ? ["--board", options.board] : []),
+      "--json",
+    ], "status");
   }
 
   transition(stage: string, requestId: string): Promise<WorkboardStatus> {
-    return this.call(["transition", stage, "--request-id", requestId, "--json"]);
+    return this.callFor<WorkboardStatus>(["transition", stage, "--request-id", requestId, "--json"], "status");
   }
 
-  startRun(role: string): Promise<WorkboardStatus> {
-    return this.call(["run", "start", role, "--json"]);
+  startRun(role: string, requestId?: string): Promise<WorkboardStatus> {
+    return this.callFor<WorkboardStatus>([
+      "run", "start", role, ...(requestId ? ["--request-id", requestId] : []), "--json",
+    ], "status");
   }
 
-  finishRun(role: string, result: RunResult): Promise<WorkboardStatus> {
-    return this.call(["run", "finish", role, "--result", result, "--json"]);
+  finishRun(role: string, result: RunResult, requestId?: string): Promise<WorkboardStatus> {
+    return this.callFor<WorkboardStatus>([
+      "run", "finish", role, "--result", result, ...(requestId ? ["--request-id", requestId] : []), "--json",
+    ], "status");
   }
 
-  private async call(args: string[]): Promise<WorkboardStatus> {
+  boardNew(options: { name?: string; cwd?: string } = {}): Promise<BoardSummary> {
+    return this.callFor<BoardSummary>([
+      "board", "new",
+      ...(options.name ? ["--name", options.name] : []),
+      ...(options.cwd ? ["--cwd", options.cwd] : []),
+      "--json",
+    ], "board");
+  }
+
+  createTask(title: string, options: CreateTaskOptions = {}): Promise<TaskView> {
+    return this.callFor<TaskView>([
+      "task", "add", title,
+      ...(options.body ? ["--body", options.body] : []),
+      ...(options.state ? ["--state", options.state] : []),
+      ...(options.board ? ["--board", options.board] : []),
+      "--json",
+    ], "task");
+  }
+
+  listTasks(options: ListTasksOptions = {}): Promise<TaskView[]> {
+    return this.callFor<TaskView[]>([
+      "task", "list",
+      ...(options.state ? ["--state", options.state] : []),
+      ...(options.all ? ["--all"] : []),
+      "--json",
+    ], "tasks");
+  }
+
+  moveTask(task: string, state: string): Promise<TaskView> {
+    return this.callFor<TaskView>(["task", "move", task, "--state", state, "--json"], "task");
+  }
+
+  archiveTask(task: string, closePane = false): Promise<TaskView> {
+    return this.callFor<TaskView>([
+      "task", "archive", task, ...(closePane ? ["--close-pane"] : []), "--json",
+    ], "task");
+  }
+
+  private async callFor<T>(args: string[], field: string): Promise<T> {
+    const response = await this.call(args);
+    return response[field] as T;
+  }
+
+  private async call(args: string[]): Promise<Record<string, unknown>> {
     const result = await this.runner(this.executable, args);
     const text = result.exitCode === 0 ? result.stdout : result.stderr;
     let response: SuccessResponse | ErrorResponse;
@@ -73,6 +174,6 @@ export class WorkboardClient {
       const error = response.ok ? { code: "COMMAND_FAILED", message: "herdr-workboard command failed" } : response.error;
       throw new WorkboardError(error.code, error.message, result.exitCode);
     }
-    return response.status;
+    return response;
   }
 }

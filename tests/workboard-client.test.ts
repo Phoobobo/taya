@@ -33,4 +33,57 @@ describe("WorkboardClient", () => {
     expect(error).toBeInstanceOf(WorkboardError);
     expect(error).toMatchObject({ code: "INVALID_TRANSITION", exitCode: 4, message: "not allowed" });
   });
+
+  it("creates a board and reads its ids synchronously", async () => {
+    const board = {
+      id: "b1", name: "repo", cwd: "/repo", workspace_id: "w2", board_pane_id: "p1",
+      agent_cmd: [], states: [], task_count: 0,
+    };
+    const runner = vi.fn<CommandRunner>(async () => ({ stdout: JSON.stringify({ ok: true, board }), stderr: "", exitCode: 0 }));
+    const client = new WorkboardClient("herdr-workboard", runner);
+
+    await expect(client.boardNew({ name: "repo", cwd: "/repo" })).resolves.toEqual(board);
+    expect(runner).toHaveBeenCalledWith("herdr-workboard", ["board", "new", "--name", "repo", "--cwd", "/repo", "--json"]);
+  });
+
+  it("creates a task addressed at an explicit board", async () => {
+    const task = {
+      id: "t1", seq: 1, title: "Do it", state_id: "s1", state: "todo",
+      pane_id: null, archived: false, created_at: 0, updated_at: 0,
+    };
+    const runner = vi.fn<CommandRunner>(async () => ({ stdout: JSON.stringify({ ok: true, task }), stderr: "", exitCode: 0 }));
+    const client = new WorkboardClient("herdr-workboard", runner);
+
+    await expect(client.createTask("Do it", { board: "b1" })).resolves.toEqual(task);
+    expect(runner).toHaveBeenCalledWith("herdr-workboard", ["task", "add", "Do it", "--board", "b1", "--json"]);
+  });
+
+  it("lists, moves, and archives tasks", async () => {
+    const task = {
+      id: "t1", seq: 1, title: "Do it", state_id: "s2", state: "doing",
+      pane_id: null, archived: false, created_at: 0, updated_at: 0,
+    };
+    const runner = vi.fn<CommandRunner>(async (_command, args) => {
+      if (args[1] === "list") return { stdout: JSON.stringify({ ok: true, tasks: [task] }), stderr: "", exitCode: 0 };
+      return { stdout: JSON.stringify({ ok: true, task }), stderr: "", exitCode: 0 };
+    });
+    const client = new WorkboardClient("herdr-workboard", runner);
+
+    await expect(client.listTasks({ all: true })).resolves.toEqual([task]);
+    await expect(client.moveTask("t1", "doing")).resolves.toEqual(task);
+    await expect(client.archiveTask("t1", true)).resolves.toEqual(task);
+    expect(runner).toHaveBeenCalledWith("herdr-workboard", ["task", "list", "--all", "--json"]);
+    expect(runner).toHaveBeenCalledWith("herdr-workboard", ["task", "move", "t1", "--state", "doing", "--json"]);
+    expect(runner).toHaveBeenCalledWith("herdr-workboard", ["task", "archive", "t1", "--close-pane", "--json"]);
+  });
+
+  it("binds a workflow to a task on init", async () => {
+    const runner = vi.fn<CommandRunner>(async () => ({ stdout: JSON.stringify({ ok: true, status }), stderr: "", exitCode: 0 }));
+    const client = new WorkboardClient("herdr-workboard", runner);
+
+    await expect(client.initialize("workflow.yaml", { taskId: "t1", board: "b1" })).resolves.toEqual(status);
+    expect(runner).toHaveBeenCalledWith("herdr-workboard", [
+      "workflow", "init", "workflow.yaml", "--task", "t1", "--board", "b1", "--json",
+    ]);
+  });
 });

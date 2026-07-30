@@ -142,14 +142,23 @@ task.completed
 
 herdr-workboard is separately owned and may be changed directly. Its responsibilities are deliberately decoupled from Taya and Pi.
 
-Taya calls a workspace-scoped CLI; it never edits board JSON directly:
+Taya calls a workspace-scoped CLI; it never edits board JSON directly. The commands Taya depends on:
 
 ```bash
+herdr-workboard board new --name <label> --cwd <dir> --json
+herdr-workboard task add <title> [--body <t>] [--state <id|name>] --board <id> --json
+herdr-workboard task list [--state <s>] [--all] --json
+herdr-workboard task move <t> --state <s> --json
+herdr-workboard task archive <t> [--close-pane] --json
+herdr-workboard workflow init <file> [--task <id>] --json
+herdr-workboard workflow show --json
 herdr-workboard status --json
 herdr-workboard transition architecture_review --request-id msg_42 --json
 herdr-workboard run start architect --json
 herdr-workboard run finish architect --result passed --json
 ```
+
+`board new` builds the workspace synchronously and returns its ids in the response, so Taya never polls `workspace list` to discover what got created. Calls issued from outside the board's own pane — such as `taya start` creating the task before any pane exists in that workspace — pass `--board <id>` explicitly rather than relying on the invoking pane's context. `workflow init --task <id>` binds a card to the workflow: each transition then moves that card into the stage's column and reports it as a `card` object on the response.
 
 Required CLI behavior:
 
