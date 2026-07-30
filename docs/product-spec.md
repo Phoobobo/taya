@@ -97,7 +97,7 @@ A release candidate passes one real macOS scenario:
 
 1. `taya` restores or creates Herdr session `taya`.
 2. The user confirms a Work Directory.
-3. Taya creates a task workspace with assistant, supervisor, Workboard, architect, coder, and QA panes.
+3. Taya creates a task workspace with Assistant as the first tab, followed by Workboard, Supervisor, Architect, Coder, and QA panes.
 4. The assistant executes the standard workflow through native Pi sessions.
 5. Architect and QA inspect the coder's shared worktree.
 6. Coder creates the MR only after local review and QA pass.
