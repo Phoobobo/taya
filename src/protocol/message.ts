@@ -20,39 +20,49 @@ export function createMessage(
   input: Omit<TayaMessageHeader, "v" | "id"> & { id?: string },
   body: string,
 ): TayaMessage {
+  // Spread first: callers routinely pass `id: undefined` to mean "generate one",
+  // and a trailing spread would overwrite the generated id with that undefined.
   return {
-    header: { v: TAYA_MESSAGE_VERSION, id: input.id ?? randomUUID(), ...input },
+    header: { ...input, v: TAYA_MESSAGE_VERSION, id: input.id ?? randomUUID() },
     body: body.trim(),
   };
 }
 
+/**
+ * One line, always. Delivery is `herdr pane send-text` followed by a single
+ * Enter, so any literal newline in the envelope would submit early and split
+ * one message into several. The body therefore travels inside the JSON, where
+ * standard escaping handles newlines, quotes, and the rest.
+ */
 export function encodeMessage(message: TayaMessage): string {
-  return `[TAYA-MSG] ${JSON.stringify(message.header)}\n\n${message.body}\n\n[/TAYA-MSG]`;
+  return `[TAYA-MSG] ${JSON.stringify({ ...message.header, body: message.body })}`;
 }
 
 export function decodeMessage(input: string): TayaMessage {
-  const match = input.trim().match(/^\[TAYA-MSG\]\s+(\{[^\n]+\})\n\n([\s\S]*?)\n\n\[\/TAYA-MSG\]$/);
+  const match = input.trim().match(/^\[TAYA-MSG\]\s+(\{.*\})$/);
   if (!match) throw new Error("Invalid TAYA-MSG envelope");
 
-  let header: unknown;
+  let payload: unknown;
   try {
-    header = JSON.parse(match[1]);
+    payload = JSON.parse(match[1]);
   } catch {
     throw new Error("Invalid TAYA-MSG JSON header");
   }
-  if (!isHeader(header)) throw new Error("Invalid TAYA-MSG header fields");
-  return { header, body: match[2].trim() };
+  if (!isPayload(payload)) throw new Error("Invalid TAYA-MSG header fields");
+  const { body, ...header } = payload;
+  return { header, body: body.trim() };
 }
 
-function isHeader(value: unknown): value is TayaMessageHeader {
+function isPayload(value: unknown): value is TayaMessageHeader & { body: string } {
   if (!value || typeof value !== "object") return false;
-  const header = value as Partial<TayaMessageHeader>;
-  return header.v === TAYA_MESSAGE_VERSION
-    && nonEmpty(header.id)
-    && nonEmpty(header.from)
-    && nonEmpty(header.to)
-    && nonEmpty(header.type)
-    && (header.replyTo === null || nonEmpty(header.replyTo));
+  const payload = value as Partial<TayaMessageHeader & { body: string }>;
+  return payload.v === TAYA_MESSAGE_VERSION
+    && nonEmpty(payload.id)
+    && nonEmpty(payload.from)
+    && nonEmpty(payload.to)
+    && nonEmpty(payload.type)
+    && typeof payload.body === "string"
+    && (payload.replyTo === null || nonEmpty(payload.replyTo));
 }
 
 function nonEmpty(value: unknown): value is string {

@@ -117,23 +117,22 @@ A single `pi` process is **either** a TUI pane **or** an RPC endpoint, never bot
 
 If a TUI session ever needs a real control channel, the next rung of the capability escalation ladder is a pi extension, which can open its own channel from inside the session.
 
-Messages sent through Herdr use JSON metadata plus a readable Markdown body:
+Messages sent through Herdr are a single line: one `[TAYA-MSG]` marker followed by one JSON object.
 
 ```text
-[TAYA-MSG] {"v":1,"id":"msg_42","from":"architect","to":"assistant","type":"review.changes_requested","replyTo":"msg_37"}
-
-Two blocking findings. See `.taya/review.md`.
-
-[/TAYA-MSG]
+[TAYA-MSG] {"v":1,"id":"msg_42","from":"architect","to":"assistant","type":"review.changes_requested","replyTo":"msg_37","body":"Two blocking findings. See `.taya/review.md`."}
 ```
 
-Required metadata:
+The single line is a delivery constraint, not a stylistic one. Herdr delivers a message with `pane send-text` followed by one `send-keys ... Enter`, and `send-text` writes literal text — so any newline inside the envelope acts as its own Enter and splits one message into several unparseable fragments. Carrying the body inside the JSON lets standard string escaping handle newlines, quotes, and everything else, so a multi-line body survives intact.
+
+Required fields:
 
 - `v`: protocol version, currently `1`
 - `id`: unique delivery ID used for acknowledgement and deduplication
 - `from` and `to`: role pane names
 - `type`: workflow semantic
 - `replyTo`: command/result correlation or `null`
+- `body`: the message itself, as Markdown
 
 The workspace supplies task isolation, so messages do not repeat workspace or task IDs.
 

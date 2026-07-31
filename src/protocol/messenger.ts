@@ -8,6 +8,11 @@ export interface SendMessageInput {
   replyTo?: string | null;
   body: string;
   id?: string;
+  /**
+   * Workspace holding the recipient pane. Background processes should set this
+   * rather than relying on their own pane's workspace to resolve the target.
+   */
+  workspaceId?: string;
 }
 
 export class TayaMessenger {
@@ -21,7 +26,7 @@ export class TayaMessenger {
       type: input.type,
       replyTo: input.replyTo ?? null,
     }, input.body);
-    await this.herdr.send(input.to, encodeMessage(message));
+    await this.herdr.send(input.to, encodeMessage(message), input.workspaceId);
     return message;
   }
 

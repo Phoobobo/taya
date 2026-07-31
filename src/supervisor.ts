@@ -48,7 +48,7 @@ export async function supervise(workspaceId: string, signal: AbortSignal): Promi
   }
 }
 
-function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
+export function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolvePromise) => {
     const finish = () => {
       clearTimeout(timeout);

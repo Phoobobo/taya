@@ -27,12 +27,16 @@ export async function initialize(options: InitOptions = {}): Promise<string> {
   await mkdir(resolve(home, "assistant"), { recursive: true });
   await mkdir(resolve(home, "agents"), { recursive: true });
   await mkdir(resolve(home, "workflows"), { recursive: true });
-  await mkdir(resolve(home, "skills"), { recursive: true });
 
+  // Prompt templates and skills are deliberately NOT copied here. They are
+  // resolved at launch from the package first, with anything under
+  // ~/.taya/prompt-templates or ~/.taya/skills layered on top as an override.
+  // Copying them would freeze a snapshot: `cp` never overwrites, so a template
+  // shipped with a later version would never reach an existing install, and a
+  // user who deleted their copy would silently lose the command entirely.
   const source = resourcesDir();
   await cp(resolve(source, "agents"), resolve(home, "agents"), { recursive: true, force: false, errorOnExist: false });
   await cp(resolve(source, "workflows"), resolve(home, "workflows"), { recursive: true, force: false, errorOnExist: false });
-  await cp(resolve(source, "skills"), resolve(home, "skills"), { recursive: true, force: false, errorOnExist: false });
 
   const assistantPrompt = await readFile(resolve(source, "prompts", "assistant.md"), "utf8");
   await writeIfMissing(resolve(home, "assistant", "SYSTEM.md"), assistantPrompt);

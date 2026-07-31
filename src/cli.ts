@@ -7,10 +7,11 @@ import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { initialize } from "./config/init.js";
 import { loadConfig, loadWorkdirs } from "./config/load.js";
-import { tayaHome } from "./config/paths.js";
+import { resourcesDir, tayaHome } from "./config/paths.js";
 import type { Provider, WorkDirectory } from "./config/types.js";
 import { inspectDependencies, missingRequired } from "./dependencies.js";
 import { HerdrClient } from "./herdr/client.js";
+import { DEFAULT_INTERVAL_MS, schedule } from "./scheduler.js";
 import { supervise } from "./supervisor.js";
 import { addWorkdir } from "./workdirs/manage.js";
 import { recommendWorkdirs } from "./workdirs/recommend.js";
@@ -26,6 +27,7 @@ try {
   else if (command === "start") await startCommand(args);
   else if (command === "assistant") await assistantCommand(args);
   else if (command === "supervise") await superviseCommand(args);
+  else if (command === "scheduler") await schedulerCommand(args);
   else if (command === "help" || command === "--help" || command === "-h") printHelp();
   else throw new Error(`Unknown command: ${command}`);
 } catch (error) {
@@ -144,8 +146,20 @@ async function assistantCommand(commandArgs: string[]): Promise<void> {
   const workdir = option(commandArgs, "--workdir");
   if (!workdir) throw new Error("assistant requires --workdir");
   const systemPrompt = await compileAssistantPrompt(home);
-  const skill = resolve(home, "skills", "taya-herdr-communication", "SKILL.md");
-  const piArgs = ["--system-prompt", systemPrompt, "--skill", skill, "--name", "taya"];
+  // Pi keeps the first definition it sees for a given name, so the user's
+  // directory goes first and the package's shipped defaults act as the
+  // fallback. A path that does not exist is ignored rather than fatal, so
+  // neither side has to be present.
+  const skill = (await canRead(resolve(home, "skills", "taya-herdr-communication", "SKILL.md")))
+    ? resolve(home, "skills", "taya-herdr-communication", "SKILL.md")
+    : resolve(resourcesDir(), "skills", "taya-herdr-communication", "SKILL.md");
+  const piArgs = [
+    "--system-prompt", systemPrompt,
+    "--skill", skill,
+    "--prompt-template", resolve(home, "prompt-templates"),
+    "--prompt-template", resolve(resourcesDir(), "prompt-templates"),
+    "--name", "taya",
+  ];
   const child = spawn("pi", piArgs, { cwd: workdir, stdio: "inherit", env: process.env });
   const exitCode = await new Promise<number>((resolvePromise, reject) => {
     child.once("error", reject);
@@ -162,6 +176,21 @@ async function superviseCommand(commandArgs: string[]): Promise<void> {
   process.once("SIGTERM", () => controller.abort());
   console.log(`Supervising Herdr workspace ${workspaceId}`);
   await supervise(workspaceId, controller.signal);
+}
+
+async function schedulerCommand(commandArgs: string[]): Promise<void> {
+  const workspaceId = option(commandArgs, "--workspace");
+  if (!workspaceId) throw new Error("scheduler requires --workspace");
+  const intervalValue = option(commandArgs, "--interval");
+  const intervalMs = intervalValue === undefined ? DEFAULT_INTERVAL_MS : Number(intervalValue);
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    throw new Error("--interval must be a positive number of milliseconds");
+  }
+  const controller = new AbortController();
+  process.once("SIGINT", () => controller.abort());
+  process.once("SIGTERM", () => controller.abort());
+  console.log(`Scheduling pick checks for Herdr workspace ${workspaceId} every ${intervalMs}ms`);
+  await schedule(workspaceId, intervalMs, controller.signal);
 }
 
 async function chooseWorkdir(candidates: WorkDirectory[]): Promise<WorkDirectory | undefined> {
@@ -218,5 +247,5 @@ function shellQuote(value: string): string {
 }
 
 function printHelp(): void {
-  console.log(`taya - True Assistant\n\nUsage:\n  taya [start] [--yes] [--dry-run]\n  taya init\n  taya workdir add <path> [--provider github|bits-codebase]\n  taya doctor [--json]\n`);
+  console.log(`taya - True Assistant\n\nUsage:\n  taya [start] [--yes] [--dry-run]\n  taya init\n  taya workdir add <path> [--provider github|bits-codebase]\n  taya doctor [--json]\n  taya scheduler --workspace <id> [--interval <ms>]\n`);
 }

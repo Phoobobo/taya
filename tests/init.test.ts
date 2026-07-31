@@ -27,4 +27,21 @@ describe("initialize", () => {
     ]);
     expect(await readFile(resolve(home, "agents", "coder", "SYSTEM.md"), "utf8")).toContain("Taya's coder");
   });
+
+  it("does not copy the resources pi resolves at launch", async () => {
+    const home = await mkdtemp(resolve(tmpdir(), "taya-test-"));
+    homes.push(home);
+
+    await initialize({ home });
+
+    // Copying these would pin them to whatever shipped at install time: `cp`
+    // never overwrites, so a later version's template could not reach an
+    // existing install, and deleting the copy would silently drop the command.
+    // They are resolved from the package at launch instead, with ~/.taya
+    // layered on top only when the user creates an override.
+    await expect(readFile(resolve(home, "prompt-templates", "pick.md"), "utf8")).rejects.toThrow();
+    await expect(
+      readFile(resolve(home, "skills", "taya-herdr-communication", "SKILL.md"), "utf8"),
+    ).rejects.toThrow();
+  });
 });
