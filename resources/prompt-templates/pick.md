@@ -12,7 +12,7 @@ By default the source is GitHub Issues on the current repository:
 gh issue list --json number,title,url,state
 ```
 
-This is the one part of Pick you are meant to change. Edit this file to point at whatever holds your work — a different CLI, an internal tracker, or a plain Markdown checklist in the repository. Describe the source here and the steps below still apply.
+This is the one part of Pick meant to be changed. To point it at something else — a different CLI, an internal tracker, a plain Markdown checklist in the repository — copy this file to `~/.taya/prompt-templates/pick.md` and edit it there. That copy wins over this one, and everything below still applies.
 
 ## Capacity
 

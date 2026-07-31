@@ -12,6 +12,19 @@ The project is at the first vertical-slice stage. Current commands initialize th
 - Herdr
 - herdr-workboard Herdr plugin
 
+## Configuration
+
+`~/.taya` holds your configuration. Most of it is written once by `taya init` and is yours to edit.
+
+Prompt templates and skills work differently: they are **not** copied into `~/.taya`. Taya resolves them from the installed package, so an upgrade reaches you without a merge step and a broken file cannot leave you without a command. To change one, copy it into `~/.taya` and edit it there — your copy wins:
+
+```bash
+mkdir -p ~/.taya/prompt-templates
+cp "$(npm root -g)/taya/resources/prompt-templates/pick.md" ~/.taya/prompt-templates/
+```
+
+`pick.md` is the interesting one: it defines where Taya looks for new work. Point it at whatever holds your backlog. Delete your copy to fall back to the shipped default.
+
 ## Development
 
 ```bash
