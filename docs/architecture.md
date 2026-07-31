@@ -4,8 +4,8 @@
 
 Taya composes three independent systems through their public CLIs:
 
-- **Pi** runs every LLM conversation and owns model authentication. Pi is the first of potentially several pluggable coding harnesses this design leaves room for (Claude Code, Codex, Grok); only Pi is implemented in the MVP. This is a principle-level note — no adapter interface is designed in this pass.
-- **Herdr** owns the persistent terminal session, workspaces, panes, agent visibility, and inter-pane transport.
+- **Pi** runs every LLM conversation and owns model authentication. Pi is the first of potentially several pluggable coding harnesses this design leaves room for (Claude Code, Codex, Grok); only Pi is implemented in the MVP, and no harness adapter interface is designed yet.
+- **Herdr** owns the persistent terminal session, workspaces, panes, and agent visibility. It carries messages into TUI sessions, but is no longer the only channel — see [Communication](#communication).
 - **herdr-workboard** owns task state, workflow transition validation, persistence, CLI access, and board UI.
 
 Taya does not read Herdr or Workboard internal storage. It does not duplicate Pi session storage.
@@ -17,7 +17,7 @@ Taya has two kinds of process:
 - **Taya Server** — persistent, one per `taya` Herdr session (not per task workspace), non-LLM. It survives across many task workspaces coming and going, and owns Workboard admission (via Taya Pick) and mechanical task-lifecycle plumbing.
 - **Taya Agent primary session** — an LLM harness session (Pi today), the same kind of process as any worker pane. It is scoped per task workspace for ad-hoc tasks, or runs as a lightweight, continuous monitor for server-admitted routine tasks.
 
-The exact internal split of responsibility inside Taya Server — whether a distinct "Supervisor" sub-component exists alongside Taya Pick, and how exactly Running-capacity admission is implemented — is an **open question**, intentionally not resolved in this pass.
+Taya Server runs the Scheduler (a bare interval timer that nudges the assistant) and Taya Pick. How Running-capacity admission is implemented — what actually pulls a To-Do card into execution — remains an **open question**, intentionally not resolved yet.
 
 ## Runtime topology
 
@@ -32,12 +32,13 @@ Each engineering task gets one Herdr workspace, whether started ad-hoc by the us
 ```text
 assistant  # first tab
 workboard
-supervisor
 executor
 reviewer
 ```
 
 The heavier opt-in workflow (`coding-standard.yaml`) uses `architect`, `coder`, and `qa` panes instead of `executor`/`reviewer`.
+
+A read-only `advisor` pane may appear transiently while an executor is consulting an [Advisor](#advisor), and disappears when that executor session ends.
 
 Taya resolves panes by name before sending. Herdr pane IDs are runtime details and must not be persisted.
 
@@ -106,9 +107,17 @@ The MVP uses prompt-level role restrictions. It does not claim hard filesystem o
 
 ## Communication
 
-Herdr CLI and its existing socket are the only transport. There is no Taya Bridge Extension and no additional socket.
+Taya uses three channels, chosen by what the channel has to carry:
 
-Taya messages use JSON metadata plus a readable Markdown body:
+- **Herdr** opens panes, spawns sessions, and delivers messages *into* TUI sessions via `pane send-text` followed by `pane send-keys ... Enter`. It remains the visibility and takeover layer: anything the user should be able to watch or take over lives in a Herdr pane.
+- **Pi RPC** (`pi --mode rpc`, JSONL over stdin/stdout) carries structured control where a text nudge is not enough — the Advisor's `fork`, `get_tree`, and structured `prompt` responses. It is **not** HTTP; pi has no HTTP, server, daemon, or attach mode.
+- **Session JSONL files** under `~/.pi/agent/sessions/` are read directly for state extraction. This is read-only and involves no transport at all.
+
+A single `pi` process is **either** a TUI pane **or** an RPC endpoint, never both: RPC mode is headless and owns the process's stdin/stdout. There is no way to attach an RPC client to a running TUI session. This is why the [Advisor](#advisor) runs headless and is mirrored into a read-only pane rather than being an ordinary interactive pane.
+
+If a TUI session ever needs a real control channel, the next rung of the capability escalation ladder is a pi extension, which can open its own channel from inside the session.
+
+Messages sent through Herdr use JSON metadata plus a readable Markdown body:
 
 ```text
 [TAYA-MSG] {"v":1,"id":"msg_42","from":"architect","to":"assistant","type":"review.changes_requested","replyTo":"msg_37"}
@@ -128,7 +137,7 @@ Required metadata:
 
 The workspace supplies task isolation, so messages do not repeat workspace or task IDs.
 
-Only the primary assistant routes business messages. Professional Agents communicate with the assistant, not directly with one another. Supervisor messages also target the assistant.
+Only the primary assistant routes business messages. Professional Agents communicate with the assistant, not directly with one another. Scheduler nudges also target the assistant.
 
 Command-like messages require acknowledgement. If no acknowledgement arrives, the assistant retries once. A second timeout becomes an agent-lost event. Progress notifications do not require acknowledgement.
 
@@ -137,6 +146,7 @@ Initial message types:
 ```text
 task.assigned
 message.acknowledged
+pick.check
 plan.ready
 implementation.ready
 review.approved
@@ -187,7 +197,9 @@ At task creation, Taya creates a fresh Herdr workspace with `assistant` as tab 1
 
 Taya depends only on Workboard's public actions and workspace-scoped CLI contract.
 
-The default workflow file is `coding-small.yaml` (implement, independent review, submit, ci, merged). `coding-standard.yaml` (architect/coder/qa/mr_review) is retained as the opt-in heavier template. Both bind the same way today, through `workflow init --task`; no CLI-contract change is needed to support the new default.
+The default workflow file is `coding-small.yaml`; `coding-standard.yaml` (architect/coder/qa/mr_review) is retained as the opt-in heavier template. Both bind the same way today, through `workflow init --task`; no CLI-contract change is needed to support the new default.
+
+`resources/workflows/coding-small.yaml` still names its stages `coder` and `qa`. Renaming them to `executor` and `reviewer`, to match the roles this document describes, is pending work.
 
 ## Taya Pick (Phase 1 / MVP)
 
@@ -196,7 +208,39 @@ Taya Pick, run by Taya Server, is the producer half of the routine loop (see the
 - A single configured source adapter for MVP: GitHub Issues via `gh issue list --json`.
 - To-Do capacity: a simple count check against Workboard's To-Do state, via the existing `herdr-workboard task list --state <todo> --all --json`, before picking a new item.
 - Newly picked items become Workboard cards via the existing `herdr-workboard task add ... --json` (`WorkboardClient.createTask` in `src/workboard/client.ts`) — no new Workboard CLI surface is needed for Phase 1.
-- Running-capacity admission — actually starting a task workspace for a To-Do card once capacity allows — is explicitly **not specified in this pass**; see the open question in [Taya Server vs. Taya Agent session](#taya-server-vs-taya-agent-session).
+- The [Scheduler](#scheduler) is what makes this periodic: it fires a `pick.check` nudge at the assistant on an interval, and the assistant does the actual source check.
+- Running-capacity admission — actually starting a task workspace for a To-Do card once capacity allows — is explicitly **not specified yet**; see the open question in [Taya Server vs. Taya Agent session](#taya-server-vs-taya-agent-session).
+
+## Scheduler
+
+The Scheduler is a deterministic interval loop inside Taya Server. On each tick it sends a nudge to the assistant pane through Herdr — for example `pick.check` — and does nothing else. It carries no state about the work, inspects nothing, and makes no decision.
+
+It must not select workflows, change plans, issue technical instructions, or merge.
+
+The Scheduler replaces the former Supervisor, which polled Herdr for agent state and provider adapters for MR/CI state and reported those facts to the assistant. That watching responsibility now sits with each executor session, and reporting is reconstructed on demand from durable artifacts (see [Session state extraction](#session-state-extraction)).
+
+`src/supervisor.ts` still implements the old polling design. Migrating it to the Scheduler shape is pending work, not something this document describes as done.
+
+## Advisor
+
+An Advisor is forked on demand when an executor session cannot resolve a decision alone.
+
+- It runs as `pi --mode rpc`, spawned by Taya, communicating over stdio JSONL. RPC is what makes the rest of this section possible; a TUI session could not offer it.
+- Its context slice is chosen at fork time: `get_fork_messages` lists the user messages available as fork points, and `fork {entryId}` derives the Advisor from the chosen one. This is how an Advisor stays lightweight — it inherits only the part of the executor's history that the decision actually needs.
+- Its session JSONL is tailed into a read-only Herdr pane so the user can watch the consultation. That pane is not interactive: the real process reads stdin from Taya, so typing into the pane does nothing.
+- It is destroyed when its executor session ends, not when it answers the first question — follow-up questions on the same decision are expected.
+
+## Session state extraction
+
+Reconstructing what a session is doing costs no tokens, because it reads structure rather than asking a model to summarize:
+
+- `get_entries` returns entries in append order and accepts a `since` cursor. Entry ids are durable across client restarts, which makes them usable as a polling cursor.
+- `get_tree` returns the full tree, including each entry's `label` and `labelTimestamp`.
+- Entry **labels** are how decisions stay recoverable. Executor sessions label decisions as they make them; nothing has to re-derive them afterwards.
+- The `/tree` filter modes — `user-only`, `labeled-only`, `no-tools` — are the precedent for which entries are worth extracting.
+- Sessions are plain JSONL under `~/.pi/agent/sessions/`, so Taya can read them off disk directly, whether the session is TUI or RPC.
+
+Pi's `/compact` and its branch summarization are **not** part of this mechanism. Both call an LLM to generate their summaries and report token `usage` and `cost` accordingly. They manage a session's own context; they are not a free reporting channel.
 
 ## Worktree and transient artifacts
 
@@ -227,14 +271,6 @@ Work Directory registration does not require Git, a remote, or a Provider. An op
 - `bits-codebase`: `bitscli codebase`
 
 Provider adapters expose repository discovery, branch push, MR creation/update, review state, CI state, and merge. Local-only tasks do not require an adapter. Missing delivery tools trigger guided setup rather than credential storage in Taya.
-
-## Supervisor
-
-`taya supervise` is a deterministic polling/wait loop in its own pane. It asks Herdr for agent state and provider adapters for MR/CI state. It updates mechanical run facts through Workboard and sends structured facts to the assistant through Herdr.
-
-It must not select workflows, change plans, issue technical instructions, or merge.
-
-Whether Supervisor remains a distinct process from Taya Server, or becomes one of its internal functions alongside Taya Pick, is the open question noted in [Taya Server vs. Taya Agent session](#taya-server-vs-taya-agent-session).
 
 ## Recovery
 
