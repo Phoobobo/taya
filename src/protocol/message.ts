@@ -20,8 +20,10 @@ export function createMessage(
   input: Omit<TayaMessageHeader, "v" | "id"> & { id?: string },
   body: string,
 ): TayaMessage {
+  // Spread first: callers routinely pass `id: undefined` to mean "generate one",
+  // and a trailing spread would overwrite the generated id with that undefined.
   return {
-    header: { v: TAYA_MESSAGE_VERSION, id: input.id ?? randomUUID(), ...input },
+    header: { ...input, v: TAYA_MESSAGE_VERSION, id: input.id ?? randomUUID() },
     body: body.trim(),
   };
 }
