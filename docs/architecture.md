@@ -198,7 +198,7 @@ Taya depends only on Workboard's public actions and workspace-scoped CLI contrac
 
 The default workflow file is `coding-small.yaml`; `coding-standard.yaml` (architect/coder/qa/mr_review) is retained as the opt-in heavier template. Both bind the same way today, through `workflow init --task`; no CLI-contract change is needed to support the new default.
 
-`resources/workflows/coding-small.yaml` still names its stages `coder` and `qa`. Renaming them to `executor` and `reviewer`, to match the roles this document describes, is pending work.
+Which workflow a task gets comes from `default_workflow` in `~/.taya/config.yaml`, which ships as `coding-small`.
 
 ## Taya Pick (Phase 1 / MVP)
 
@@ -218,7 +218,6 @@ It must not select workflows, change plans, issue technical instructions, or mer
 
 The Scheduler replaces the former Supervisor, which polled Herdr for agent state and provider adapters for MR/CI state and reported those facts to the assistant. That watching responsibility now sits with each executor session, and reporting is reconstructed on demand from durable artifacts (see [Session state extraction](#session-state-extraction)).
 
-`src/supervisor.ts` still implements the old polling design. Migrating it to the Scheduler shape is pending work, not something this document describes as done.
 
 ## Advisor
 

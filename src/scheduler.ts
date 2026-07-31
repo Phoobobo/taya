@@ -1,6 +1,5 @@
 import { HerdrClient } from "./herdr/client.js";
 import { TayaMessenger } from "./protocol/messenger.js";
-import { delay } from "./supervisor.js";
 
 export const DEFAULT_INTERVAL_MS = 300_000;
 
@@ -28,4 +27,17 @@ export async function schedule(workspaceId: string, intervalMs: number, signal: 
     });
     await delay(intervalMs, signal);
   }
+}
+
+/** A sleep that gives up as soon as the signal aborts, so shutdown is prompt. */
+function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolvePromise) => {
+    const finish = () => {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", finish);
+      resolvePromise();
+    };
+    const timeout = setTimeout(finish, milliseconds);
+    signal.addEventListener("abort", finish, { once: true });
+  });
 }

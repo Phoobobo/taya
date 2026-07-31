@@ -43,7 +43,7 @@ export async function initialize(options: InitOptions = {}): Promise<string> {
   await writeIfMissing(resolve(home, "assistant", "personality.yaml"), stringify({ name: "Taya", tone: "concise and direct" }));
   await writeIfMissing(resolve(home, "assistant", "engineering.yaml"), stringify({ prefer_small_changes: true, require_tests: true }));
 
-  const config: TayaConfig = { version: 1, herdr_session: "taya", default_workflow: "coding-standard" };
+  const config: TayaConfig = { version: 1, herdr_session: "taya", default_workflow: "coding-small" };
   await writeIfMissing(resolve(home, "config.yaml"), stringify(config));
 
   const workdirs: WorkdirsDocument = { workdirs: [] };

@@ -2,7 +2,7 @@
 
 Taya is a real engineering assistant built from native [Pi](https://pi.dev) sessions, [Herdr](https://herdr.dev), and [herdr-workboard](https://github.com/Phoobobo/herdr-workboard).
 
-The project is at the first vertical-slice stage. Current commands initialize the user-owned `~/.taya` workspace, inspect runtime dependencies, recommend a configured Work Directory, create an independent Workboard workspace, start a deterministic supervisor, initialize the selected workflow, and launch the primary assistant as a native Pi TUI inside Herdr.
+The project is at the first vertical-slice stage. Current commands initialize the user-owned `~/.taya` workspace, inspect runtime dependencies, recommend a configured Work Directory, create a Workboard workspace, initialize the configured workflow, and launch the primary assistant as a native Pi TUI inside Herdr. `taya scheduler` runs the periodic nudge that drives routine work.
 
 ## Requirements
 

@@ -1,0 +1,13 @@
+name: executor
+description: Plans and implements the task end to end, and owns its branch and MR.
+model:
+  inherit: true
+  thinking: high
+tools: [read, write, edit, bash]
+skills: [herdr, taya-herdr-communication]
+constraints:
+  - Do not commit until review passes.
+  - Do not merge the MR.
+  - Escalate rather than guess when a decision is not yours to make.
+  - Communicate only with assistant through TAYA-MSG.
+prompt: SYSTEM.md
