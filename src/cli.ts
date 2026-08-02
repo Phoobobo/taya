@@ -15,6 +15,13 @@ import { DEFAULT_INTERVAL_MS, schedule } from "./scheduler.js";
 import { addWorkdir } from "./workdirs/manage.js";
 import { recommendWorkdirs } from "./workdirs/recommend.js";
 import { WorkboardClient } from "./workboard/client.js";
+import {
+  composeAgentPrompt,
+  loadAgentProfile,
+  loadRoleSystemPrompt,
+  resolveSkills,
+  type StageContract,
+} from "./agents.js";
 
 const args = process.argv.slice(2);
 const command = args[0]?.startsWith("-") ? "start" : (args.shift() ?? "start");
@@ -25,6 +32,7 @@ try {
   else if (command === "doctor") doctorCommand(args);
   else if (command === "start") await startCommand(args);
   else if (command === "assistant") await assistantCommand(args);
+  else if (command === "agent") await agentCommand(args);
   else if (command === "scheduler") await schedulerCommand(args);
   else if (command === "help" || command === "--help" || command === "-h") printHelp();
   else throw new Error(`Unknown command: ${command}`);
@@ -159,6 +167,55 @@ async function assistantCommand(commandArgs: string[]): Promise<void> {
   process.exitCode = exitCode;
 }
 
+async function agentCommand(commandArgs: string[]): Promise<void> {
+  const home = tayaHome();
+  const role = option(commandArgs, "--role");
+  const workdir = option(commandArgs, "--workdir");
+  if (!role) throw new Error("agent requires --role");
+  if (!workdir) throw new Error("agent requires --workdir");
+
+  const profile = await loadAgentProfile(home, role);
+  const [contract, engineering, system] = await Promise.all([
+    readAgentContract(home),
+    readFile(resolve(home, "assistant", "engineering.yaml"), "utf8"),
+    loadRoleSystemPrompt(home, role, profile),
+  ]);
+
+  // The stage contract is best effort: an agent launched into a workspace with
+  // no workflow bound is still a usable agent, just one without stage context.
+  const stage = await currentStage(role).catch(() => undefined);
+  const systemPrompt = composeAgentPrompt({ contract, engineering, system, profile, stage });
+
+  const { paths, missing } = await resolveSkills(home, profile.skills ?? []);
+  for (const name of missing) console.error(`taya: skill '${name}' not found; launching without it`);
+
+  const piArgs = [
+    "--system-prompt", systemPrompt,
+    ...paths.flatMap((path) => ["--skill", path]),
+    ...(profile.tools?.length ? ["--tools", profile.tools.join(",")] : []),
+    ...(profile.model?.thinking ? ["--thinking", profile.model.thinking] : []),
+    "--name", `taya-${role}`,
+  ];
+  const child = spawn("pi", piArgs, { cwd: workdir, stdio: "inherit", env: process.env });
+  const exitCode = await new Promise<number>((resolvePromise, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code) => resolvePromise(code ?? 1));
+  });
+  process.exitCode = exitCode;
+}
+
+async function readAgentContract(home: string): Promise<string> {
+  const userPath = resolve(home, "prompts", "agent.md");
+  return readFile((await canRead(userPath)) ? userPath : resolve(resourcesDir(), "prompts", "agent.md"), "utf8");
+}
+
+/** The stage this role is being launched into, if a workflow is bound to the task. */
+async function currentStage(role: string): Promise<StageContract | undefined> {
+  const workflow = await new WorkboardClient().showWorkflow();
+  const stage = workflow.stages.find((candidate) => candidate.name === workflow.current_stage);
+  return stage?.agent === role ? stage : undefined;
+}
+
 async function schedulerCommand(commandArgs: string[]): Promise<void> {
   const workspaceId = option(commandArgs, "--workspace");
   if (!workspaceId) throw new Error("scheduler requires --workspace");
@@ -228,5 +285,5 @@ function shellQuote(value: string): string {
 }
 
 function printHelp(): void {
-  console.log(`taya - True Assistant\n\nUsage:\n  taya [start] [--yes] [--dry-run]\n  taya init\n  taya workdir add <path> [--provider github|bits-codebase]\n  taya doctor [--json]\n  taya scheduler --workspace <id> [--interval <ms>]\n`);
+  console.log(`taya - True Assistant\n\nUsage:\n  taya [start] [--yes] [--dry-run]\n  taya init\n  taya workdir add <path> [--provider github|bits-codebase]\n  taya doctor [--json]\n  taya agent --role <role> --workdir <path>\n  taya scheduler --workspace <id> [--interval <ms>]\n`);
 }
