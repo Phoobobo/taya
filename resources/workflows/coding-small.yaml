@@ -1,19 +1,19 @@
 name: coding-small
-description: Small, low-risk coding task handled by one coder and verified before submission.
+description: Default coding task. One executor implements it; an independent reviewer verifies it before submission.
 stages:
   - name: implementing
-    agent: coder
+    agent: executor
     success_message: implementation.ready
     terminal: false
-  - name: qa
-    agent: qa
-    output: .taya/qa.md
-    success_message: qa.passed
-    retry_message: qa.failed
+  - name: review
+    agent: reviewer
+    output: .taya/review.md
+    success_message: review.approved
+    retry_message: review.changes_requested
     retry_to: implementing
     terminal: false
   - name: submit
-    agent: coder
+    agent: executor
     success_message: mr.created
     terminal: false
   - name: ci

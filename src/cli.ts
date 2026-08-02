@@ -12,7 +12,6 @@ import type { Provider, WorkDirectory } from "./config/types.js";
 import { inspectDependencies, missingRequired } from "./dependencies.js";
 import { HerdrClient } from "./herdr/client.js";
 import { DEFAULT_INTERVAL_MS, schedule } from "./scheduler.js";
-import { supervise } from "./supervisor.js";
 import { addWorkdir } from "./workdirs/manage.js";
 import { recommendWorkdirs } from "./workdirs/recommend.js";
 import { WorkboardClient } from "./workboard/client.js";
@@ -26,7 +25,6 @@ try {
   else if (command === "doctor") doctorCommand(args);
   else if (command === "start") await startCommand(args);
   else if (command === "assistant") await assistantCommand(args);
-  else if (command === "supervise") await superviseCommand(args);
   else if (command === "scheduler") await schedulerCommand(args);
   else if (command === "help" || command === "--help" || command === "-h") printHelp();
   else throw new Error(`Unknown command: ${command}`);
@@ -79,7 +77,7 @@ async function startCommand(commandArgs: string[]): Promise<void> {
     await initialize();
     console.log(`Initialized Taya at ${home}`);
   }
-  await loadConfig(home);
+  const config = await loadConfig(home);
 
   const status = inspectDependencies();
   const missing = missingRequired(status);
@@ -124,14 +122,7 @@ async function startCommand(commandArgs: string[]): Promise<void> {
     { workspace: workspace.workspace_id },
   );
   const launcher = cliLauncher();
-  const supervisorPane = await herdr.createNamedTab(
-    workspace.workspace_id, "supervisor", selected.path, { TAYA_HOME: home }, false,
-  );
-  await herdr.runInPane(
-    supervisorPane.pane_id,
-    [...launcher, "supervise", "--workspace", workspace.workspace_id].map(shellQuote).join(" "),
-  );
-  const workflow = resolve(home, "workflows", "coding-standard.yaml");
+  const workflow = resolve(home, "workflows", `${config.default_workflow}.yaml`);
   const bootstrap = [
     "herdr-workboard", "workflow", "init", workflow, "--task", task.id, "--json",
     "&&", ...launcher, "assistant", "--workdir", selected.path,
@@ -166,16 +157,6 @@ async function assistantCommand(commandArgs: string[]): Promise<void> {
     child.once("exit", (code) => resolvePromise(code ?? 1));
   });
   process.exitCode = exitCode;
-}
-
-async function superviseCommand(commandArgs: string[]): Promise<void> {
-  const workspaceId = option(commandArgs, "--workspace");
-  if (!workspaceId) throw new Error("supervise requires --workspace");
-  const controller = new AbortController();
-  process.once("SIGINT", () => controller.abort());
-  process.once("SIGTERM", () => controller.abort());
-  console.log(`Supervising Herdr workspace ${workspaceId}`);
-  await supervise(workspaceId, controller.signal);
 }
 
 async function schedulerCommand(commandArgs: string[]): Promise<void> {

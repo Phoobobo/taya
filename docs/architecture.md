@@ -198,7 +198,7 @@ Taya depends only on Workboard's public actions and workspace-scoped CLI contrac
 
 The default workflow file is `coding-small.yaml`; `coding-standard.yaml` (architect/coder/qa/mr_review) is retained as the opt-in heavier template. Both bind the same way today, through `workflow init --task`; no CLI-contract change is needed to support the new default.
 
-`resources/workflows/coding-small.yaml` still names its stages `coder` and `qa`. Renaming them to `executor` and `reviewer`, to match the roles this document describes, is pending work.
+Which workflow a task gets comes from `default_workflow` in `~/.taya/config.yaml`, which ships as `coding-small`.
 
 ## Taya Pick (Phase 1 / MVP)
 
@@ -218,7 +218,6 @@ It must not select workflows, change plans, issue technical instructions, or mer
 
 The Scheduler replaces the former Supervisor, which polled Herdr for agent state and provider adapters for MR/CI state and reported those facts to the assistant. That watching responsibility now sits with each executor session, and reporting is reconstructed on demand from durable artifacts (see [Session state extraction](#session-state-extraction)).
 
-`src/supervisor.ts` still implements the old polling design. Migrating it to the Scheduler shape is pending work, not something this document describes as done.
 
 ## Advisor
 
@@ -256,11 +255,11 @@ All roles share the task worktree or copied directory. The executor writes sourc
 
 Review and QA append timestamped rounds rather than overwriting earlier results. The directory is deleted with the worktree only after merge or explicit cancellation.
 
-## Preference document
+## Accumulated preference
 
-A durable, per-Work-Directory `policy.md` lives outside any single task's worktree — unlike `.taya/architecture.md`, `review.md`, and `qa.md`, it is not deleted when a worktree goes away, since it needs to persist across many tasks and across Taya Pick cycles. It is distinct from `~/.taya/assistant/engineering.yaml`, which stays global and cross-repo.
+How user corrections accumulate into durable preferences is **an open question**; see the product spec. Nothing is specified here yet, and no agent is given a preference surface to read.
 
-Whenever the user corrects a routine decision, that correction is appended to the relevant Work Directory's `policy.md`. The executor and reviewer read it before acting on that Work Directory.
+`~/.taya/assistant/engineering.yaml` is the only preference file that exists today. It is global and cross-repository, and it is written by hand.
 
 ## Provider adapters
 

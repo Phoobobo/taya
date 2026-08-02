@@ -26,7 +26,7 @@ Work enters Taya one of two ways:
 6. **Merge is completion.** A coding task is complete only after its MR is merged or the user explicitly cancels it.
 7. **Server owns plumbing, agent owns judgment.** Mechanical concerns — capacity, admission, task lifecycle, board state — belong to Taya Server and never require an LLM. Product and technical judgment belongs to the agent session.
 8. **Bounded autonomy.** The assistant decides on its own only where an explicit, accumulated preference exists for that class of work. Where none exists and the stakes are non-trivial, it asks rather than guesses.
-9. **Accumulated preference.** Every user correction is captured into a durable, growing policy artifact (see [Preference document](#preference-document)) so the same question isn't asked twice.
+9. **Accumulated preference.** Every user correction should end up captured somewhere durable, so the same question isn't asked twice. The mechanism is [not yet decided](#accumulated-preference).
 10. **Context stays where the work is.** Decision-making context lives in the executor session doing the work. Nothing centralized accumulates the context of every concurrent task — that is what makes running many tasks with little human intervention possible at all. When an executor cannot decide alone, the system forks a temporary [Advisor](#advisor) rather than routing the decision through a standing session.
 11. **Every capability is a CLI command.** All Taya functionality is exposed as a `taya` CLI command, so the primary assistant can invoke any of it through ordinary tool calls rather than requiring bespoke integration.
 12. **Capability escalation ladder.** When Taya needs something the coding harness cannot do, the answer is, in order: use `pi` as it is; write a **pi extension**; build a purpose-made coding agent on the **pi SDK**. This is the expected path of evolution, not a workaround.
@@ -68,7 +68,6 @@ It includes:
 - the lightweight default workflow (`coding-small.yaml`): implement, independent review, submit, CI, merge
 - the heavier opt-in workflow (`coding-standard.yaml`): architect/coder/qa/mr_review, unchanged from today, available for tasks that want more structure
 - one worktree and one MR per task
-- a per-Work-Directory policy document that accumulates user corrections
 - user takeover and hand-back
 - local Work Directories with optional GitHub and Codebase delivery detection
 
@@ -78,6 +77,7 @@ Deferred:
 - coding harnesses other than Pi
 - pi extensions and a purpose-made pi-SDK agent (see the capability escalation ladder — expected later, not built now)
 - the summary and report file lifecycle (see [Reporting and summaries](#reporting-and-summaries))
+- how accumulated preferences are stored and applied (see [Accumulated preference](#accumulated-preference))
 - stacked MRs
 - multi-repository tasks
 - Botmux notifications
@@ -166,9 +166,9 @@ The primary assistant asks the user only when it cannot resolve uncertainty invo
 - changed responsibility boundaries across services or repositories
 - rejection of a user-confirmed technical direction
 - substantial long-term cost, security risk, or operational complexity
-- a non-trivial decision with no matching entry in the Work Directory's policy document — absence of a matching preference is itself a reason to ask, not a reason to guess
+- a non-trivial decision the user has not already settled — absence of a settled answer is itself a reason to ask, not a reason to guess
 
-Ordinary implementation choices, task ordering, review feedback, retries, commits, MR creation, and merge are autonomous once a matching preference exists.
+Ordinary implementation choices, task ordering, review feedback, retries, commits, MR creation, and merge are autonomous.
 
 ## Reporting and summaries
 
@@ -179,11 +179,13 @@ The user's view of what Taya is doing is reconstructed from durable artifacts �
 
 Summary and report files need an explicit lifecycle — where they are written, when they expire, and when they are archived. That mechanism is **required but not yet specified**; it is an open question rather than a settled rule.
 
-## Preference document
+## Accumulated preference
 
-A durable, per-Work-Directory `policy.md` — distinct from the ephemeral `.taya/*.md` worktree files, which are deleted with the worktree. The policy document persists across tasks and across Taya Pick cycles.
+Bounded autonomy depends on Taya knowing what the user has already decided, so corrections have to accumulate somewhere durable rather than being re-asked every time.
 
-Whenever the user corrects a routine decision, that correction is appended to the relevant Work Directory's policy document. The executor and reviewer read it before acting on that Work Directory, so the same question doesn't need to be asked twice.
+How that works is **an open question and deliberately undecided** — what a preference is, where it is stored, who may write one, and how a later correction supersedes an earlier one are all unsettled. `~/.taya/assistant/engineering.yaml` is the only preference surface that exists today, and it is global rather than per-repository.
+
+Until this is settled, an agent has no accumulated preferences to consult, so the [user interruption policy](#user-interruption-policy) governs on its own: where there is no settled answer and the stakes are non-trivial, ask.
 
 ## Takeover
 
@@ -211,4 +213,4 @@ Routine:
 2. Taya Server starts it within Running capacity.
 3. The executor fixes it; the independent reviewer approves it.
 4. CI passes and the task merges with no prompt to the user.
-5. Any user correction along the way is appended to that Work Directory's policy document.
+5. The user is not prompted at any point that the interruption policy does not require.
