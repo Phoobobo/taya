@@ -26,7 +26,7 @@ Work enters Taya one of two ways:
 6. **Merge is completion.** A coding task is complete only after its MR is merged or the user explicitly cancels it.
 7. **Server owns plumbing, agent owns judgment.** Mechanical concerns — capacity, admission, task lifecycle, board state — belong to Taya Server and never require an LLM. Product and technical judgment belongs to the agent session.
 8. **Bounded autonomy.** The assistant decides on its own only where an explicit, accumulated preference exists for that class of work. Where none exists and the stakes are non-trivial, it asks rather than guesses.
-9. **Accumulated preference.** Every user correction is captured into a durable, growing policy artifact (see [Preference document](#preference-document)) so the same question isn't asked twice.
+9. **Accumulated preference.** Every user correction is captured as a durable preference (see [Preference store](#preference-store)) so the same question isn't asked twice.
 10. **Context stays where the work is.** Decision-making context lives in the executor session doing the work. Nothing centralized accumulates the context of every concurrent task — that is what makes running many tasks with little human intervention possible at all. When an executor cannot decide alone, the system forks a temporary [Advisor](#advisor) rather than routing the decision through a standing session.
 11. **Every capability is a CLI command.** All Taya functionality is exposed as a `taya` CLI command, so the primary assistant can invoke any of it through ordinary tool calls rather than requiring bespoke integration.
 12. **Capability escalation ladder.** When Taya needs something the coding harness cannot do, the answer is, in order: use `pi` as it is; write a **pi extension**; build a purpose-made coding agent on the **pi SDK**. This is the expected path of evolution, not a workaround.
@@ -68,7 +68,7 @@ It includes:
 - the lightweight default workflow (`coding-small.yaml`): implement, independent review, submit, CI, merge
 - the heavier opt-in workflow (`coding-standard.yaml`): architect/coder/qa/mr_review, unchanged from today, available for tasks that want more structure
 - one worktree and one MR per task
-- a per-Work-Directory policy document that accumulates user corrections
+- a per-Work-Directory preference store that accumulates user corrections
 - user takeover and hand-back
 - local Work Directories with optional GitHub and Codebase delivery detection
 
@@ -166,7 +166,7 @@ The primary assistant asks the user only when it cannot resolve uncertainty invo
 - changed responsibility boundaries across services or repositories
 - rejection of a user-confirmed technical direction
 - substantial long-term cost, security risk, or operational complexity
-- a non-trivial decision with no matching entry in the Work Directory's policy document — absence of a matching preference is itself a reason to ask, not a reason to guess
+- a non-trivial decision with no matching entry in the Work Directory's [preference store](#preference-store) — absence of a matching preference is itself a reason to ask, not a reason to guess
 
 Ordinary implementation choices, task ordering, review feedback, retries, commits, MR creation, and merge are autonomous once a matching preference exists.
 
@@ -179,11 +179,19 @@ The user's view of what Taya is doing is reconstructed from durable artifacts �
 
 Summary and report files need an explicit lifecycle — where they are written, when they expire, and when they are archived. That mechanism is **required but not yet specified**; it is an open question rather than a settled rule.
 
-## Preference document
+## Preference store
 
-A durable, per-Work-Directory `policy.md` — distinct from the ephemeral `.taya/*.md` worktree files, which are deleted with the worktree. The policy document persists across tasks and across Taya Pick cycles.
+Every Work Directory has a durable set of preferences: the decisions the user has already made about that kind of work. It outlives any single task, unlike the `.taya/*.md` files that are deleted with a worktree.
 
-Whenever the user corrects a routine decision, that correction is appended to the relevant Work Directory's policy document. The executor and reviewer read it before acting on that Work Directory, so the same question doesn't need to be asked twice.
+**One preference per entry, not one growing document.** Each entry holds a single decision, with a one-line description of when it applies. This is the difference between a store that stays useful and one that quietly becomes the problem: a single append-only file would be read in full by every agent on every task, so it would grow without bound into exactly the centralized context blob that [principle 10](#product-principles) exists to prevent. Entries let an agent load a cheap index and pull only the few that bear on the task in front of it.
+
+**Corrections replace, they do not accumulate.** When a new correction contradicts an existing preference, that entry is rewritten. When a preference stops applying, its entry is deleted. An append-only log would keep both sides of every reversal and leave agents guessing which one is current.
+
+**The assistant owns writes; workers only read.** The primary assistant records a preference when the user corrects a decision. An executor does not write the record of its own correction — the party whose work was just rejected is the wrong one to author the account of why. Executors and reviewers read the store and never modify it.
+
+Preferences stay plain text and user-owned. The user can read, edit, or delete any of them directly.
+
+Preferences are per-Work-Directory. `~/.taya/assistant/engineering.yaml` remains the global, cross-repository layer, and a preference belongs there only when it holds for every repository the user works in.
 
 ## Takeover
 
@@ -211,4 +219,4 @@ Routine:
 2. Taya Server starts it within Running capacity.
 3. The executor fixes it; the independent reviewer approves it.
 4. CI passes and the task merges with no prompt to the user.
-5. Any user correction along the way is appended to that Work Directory's policy document.
+5. Any user correction along the way is recorded as a preference on that Work Directory, and a later task of the same kind does not ask again.

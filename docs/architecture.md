@@ -73,6 +73,11 @@ The workspace is the task boundary. It has one Workboard task, one Git worktree,
   workflows/
     coding-small.yaml     # default
     coding-standard.yaml  # opt-in
+  workdirs/
+    <slug>/
+      preferences/        # see Preference store
+        INDEX.md
+        <name>.md
 ```
 
 No secrets are stored under `~/.taya`. Pi resolves credentials through its normal auth store.
@@ -99,7 +104,10 @@ Taya communication contract
 + role SYSTEM.md
 + role profile constraints
 + current workflow-stage contract
++ preference INDEX.md for this Work Directory
 ```
+
+The index is injected rather than looked up, so an agent never has to resolve a path to know what the user has already decided. It stays small by design; a full preference entry is fetched only when its description bears on the task.
 
 The task itself is sent as the first user message, not embedded into the role identity. Professional Agents inherit engineering preferences but not the assistant's personality.
 
@@ -255,11 +263,27 @@ All roles share the task worktree or copied directory. The executor writes sourc
 
 Review and QA append timestamped rounds rather than overwriting earlier results. The directory is deleted with the worktree only after merge or explicit cancellation.
 
-## Preference document
+## Preference store
 
-A durable, per-Work-Directory `policy.md` lives outside any single task's worktree — unlike `.taya/architecture.md`, `review.md`, and `qa.md`, it is not deleted when a worktree goes away, since it needs to persist across many tasks and across Taya Pick cycles. It is distinct from `~/.taya/assistant/engineering.yaml`, which stays global and cross-repo.
+Preferences live under `~/.taya`, never inside the Work Directory itself. Putting them in the repository would commit the user's private working preferences into a shared codebase, and putting them in the worktree would delete them with it:
 
-Whenever the user corrects a routine decision, that correction is appended to the relevant Work Directory's `policy.md`. The executor and reviewer read it before acting on that Work Directory.
+```text
+~/.taya/workdirs/<slug>/preferences/
+  INDEX.md
+  <name>.md
+```
+
+`<slug>` is derived deterministically from the Work Directory's absolute path — its basename plus a short hash of the full path, so it stays readable without colliding between same-named directories.
+
+Each preference is one file: frontmatter carrying a one-line `description` of when it applies, and a body holding the decision and why it was made. `INDEX.md` lists one line per preference — name and description only.
+
+The split exists so that reading is bounded. An agent receives `INDEX.md`, which stays small, and pulls a full entry only when its description bears on the task at hand. Reading every preference on every task would reintroduce exactly the unbounded context growth that the executor/Advisor split removes.
+
+Writes go through the primary assistant, which owns the store; executors and reviewers only read. Recording a correction rewrites the matching entry rather than appending beside it, so a reversal leaves one current answer instead of two contradictory ones, and dropping a preference deletes its file.
+
+`~/.taya/assistant/engineering.yaml` remains the global, cross-repository layer and is unaffected.
+
+The `taya` commands that read and write the store are **not implemented yet**; this section describes the shape they will implement.
 
 ## Provider adapters
 
