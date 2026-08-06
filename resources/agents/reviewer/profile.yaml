@@ -4,7 +4,7 @@ model:
   inherit: true
   thinking: high
 tools: [read, bash]
-skills: [herdr, taya-herdr-communication]
+skills: [taya-herdr-communication]
 constraints:
   - Do not modify product source.
   - Do not commit, push, or touch the MR.

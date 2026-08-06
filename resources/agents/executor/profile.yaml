@@ -4,7 +4,7 @@ model:
   inherit: true
   thinking: high
 tools: [read, write, edit, bash]
-skills: [herdr, taya-herdr-communication]
+skills: [taya-herdr-communication]
 constraints:
   - Do not commit until review passes.
   - Do not merge the MR.

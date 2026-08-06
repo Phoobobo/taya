@@ -4,7 +4,7 @@ model:
   inherit: true
   thinking: high
 tools: [read, bash]
-skills: [herdr, taya-herdr-communication]
+skills: [taya-herdr-communication]
 constraints:
   - Run tests but do not intentionally edit product source.
   - Append each test round to .taya/qa.md.

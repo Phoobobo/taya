@@ -19,6 +19,21 @@ export interface WorkboardStatus {
   }>;
 }
 
+export interface WorkflowStageView {
+  name: string;
+  agent: string;
+  output?: string;
+  success_message?: string;
+  retry_message?: string;
+  retry_to?: string;
+  terminal: boolean;
+}
+
+export interface WorkflowView {
+  current_stage: string;
+  stages: WorkflowStageView[];
+}
+
 export interface TaskView {
   id: string;
   seq: number;
@@ -89,6 +104,10 @@ export class WorkboardClient {
       ...addressingArgs(options),
       "--json",
     ], "status");
+  }
+
+  showWorkflow(options: { board?: string; workspace?: string } = {}): Promise<WorkflowView> {
+    return this.callFor<WorkflowView>(["workflow", "show", ...addressingArgs(options), "--json"], "workflow");
   }
 
   transition(stage: string, requestId: string): Promise<WorkboardStatus> {
