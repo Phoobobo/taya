@@ -204,9 +204,17 @@ async function agentCommand(commandArgs: string[]): Promise<void> {
   process.exitCode = exitCode;
 }
 
+/**
+ * The contract every professional role receives, whatever its role. Named for
+ * what it is rather than `agent.md`, which would read as one role's prompt
+ * beside `assistant.md` and would squat the name a per-role prompt may want.
+ */
 async function readAgentContract(home: string): Promise<string> {
-  const userPath = resolve(home, "prompts", "agent.md");
-  return readFile((await canRead(userPath)) ? userPath : resolve(resourcesDir(), "prompts", "agent.md"), "utf8");
+  const userPath = resolve(home, "prompts", "agent-contract.md");
+  return readFile(
+    (await canRead(userPath)) ? userPath : resolve(resourcesDir(), "prompts", "agent-contract.md"),
+    "utf8",
+  );
 }
 
 /** The stage this role is being launched into, if a workflow is bound to the task. */
