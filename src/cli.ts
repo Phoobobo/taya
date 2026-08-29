@@ -23,6 +23,9 @@ import {
   type StageContract,
 } from "./agents.js";
 
+/** Communication is how the assistant talks; delegation is how it puts work on other roles. */
+const ASSISTANT_SKILLS = ["taya-herdr-communication", "taya-delegation"];
+
 const args = process.argv.slice(2);
 const command = args[0]?.startsWith("-") ? "start" : (args.shift() ?? "start");
 
@@ -145,16 +148,13 @@ async function assistantCommand(commandArgs: string[]): Promise<void> {
   const workdir = option(commandArgs, "--workdir");
   if (!workdir) throw new Error("assistant requires --workdir");
   const systemPrompt = await compileAssistantPrompt(home);
-  // Pi keeps the first definition it sees for a given name, so the user's
-  // directory goes first and the package's shipped defaults act as the
-  // fallback. A path that does not exist is ignored rather than fatal, so
-  // neither side has to be present.
-  const skill = (await canRead(resolve(home, "skills", "taya-herdr-communication", "SKILL.md")))
-    ? resolve(home, "skills", "taya-herdr-communication", "SKILL.md")
-    : resolve(resourcesDir(), "skills", "taya-herdr-communication", "SKILL.md");
+  // Same user-over-package layering the professional roles get, so an override
+  // wins and a deleted copy falls back instead of breaking the launch.
+  const { paths, missing } = await resolveSkills(home, ASSISTANT_SKILLS);
+  for (const name of missing) console.error(`taya: skill '${name}' not found; launching without it`);
   const piArgs = [
     "--system-prompt", systemPrompt,
-    "--skill", skill,
+    ...paths.flatMap((path) => ["--skill", path]),
     "--prompt-template", resolve(home, "prompt-templates"),
     "--prompt-template", resolve(resourcesDir(), "prompt-templates"),
     "--name", "taya",
