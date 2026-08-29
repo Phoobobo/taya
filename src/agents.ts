@@ -108,6 +108,9 @@ export async function loadRoleSystemPrompt(home: string, role: string, profile: 
   return readFile(path, "utf8");
 }
 
+/** Communication is how the assistant talks; delegation is how it puts work on other roles. */
+export const ASSISTANT_SKILLS = ["taya-herdr-communication", "taya-delegation"];
+
 /**
  * Map a profile's skill names to readable paths, user directory first. A name
  * that resolves nowhere is dropped rather than passed on — handing a harness a

@@ -16,15 +16,13 @@ import { addWorkdir } from "./workdirs/manage.js";
 import { recommendWorkdirs } from "./workdirs/recommend.js";
 import { WorkboardClient } from "./workboard/client.js";
 import {
+  ASSISTANT_SKILLS,
   composeAgentPrompt,
   loadAgentProfile,
   loadRoleSystemPrompt,
   resolveSkills,
   type StageContract,
 } from "./agents.js";
-
-/** Communication is how the assistant talks; delegation is how it puts work on other roles. */
-const ASSISTANT_SKILLS = ["taya-herdr-communication", "taya-delegation"];
 
 const args = process.argv.slice(2);
 const command = args[0]?.startsWith("-") ? "start" : (args.shift() ?? "start");

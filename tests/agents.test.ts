@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { composeAgentPrompt, loadAgentProfile, resolveSkills } from "../src/agents.js";
+import { ASSISTANT_SKILLS, composeAgentPrompt, loadAgentProfile, resolveSkills } from "../src/agents.js";
 
 const homes: string[] = [];
 
@@ -96,5 +96,15 @@ describe("resolveSkills", () => {
     expect(paths).toHaveLength(1);
     expect(paths[0]).toContain("taya-herdr-communication");
     expect(missing).toEqual(["not-a-real-skill"]);
+  });
+
+  it("finds both shipped assistant skills and reports none missing", async () => {
+    const { paths, missing } = await resolveSkills(await scratchHome(), ASSISTANT_SKILLS);
+
+    expect(missing).toEqual([]);
+    expect(paths).toHaveLength(ASSISTANT_SKILLS.length);
+    for (const name of ASSISTANT_SKILLS) {
+      expect(paths.some((path) => path.includes(name))).toBe(true);
+    }
   });
 });
