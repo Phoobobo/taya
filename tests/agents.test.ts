@@ -2,7 +2,14 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ASSISTANT_SKILLS, composeAgentPrompt, loadAgentProfile, resolveSkills } from "../src/agents.js";
+import {
+  ASSISTANT_SKILLS,
+  composeAgentPrompt,
+  loadAgentProfile,
+  resolvePromptTemplates,
+  resolveSkills,
+} from "../src/agents.js";
+import { resourcesDir } from "../src/config/paths.js";
 
 const homes: string[] = [];
 
@@ -81,6 +88,19 @@ describe("loadAgentProfile", () => {
 
   it("names the role when it does not exist", async () => {
     await expect(loadAgentProfile(await scratchHome(), "nope")).rejects.toThrow("nope");
+  });
+});
+
+describe("resolvePromptTemplates", () => {
+  it("omits a missing user directory while retaining shipped templates", async () => {
+    const home = await scratchHome();
+    const userTemplates = resolve(home, "prompt-templates");
+    const shippedTemplates = resolve(resourcesDir(), "prompt-templates");
+
+    await expect(resolvePromptTemplates(home)).resolves.toEqual([shippedTemplates]);
+
+    await mkdir(userTemplates);
+    await expect(resolvePromptTemplates(home)).resolves.toEqual([userTemplates, shippedTemplates]);
   });
 });
 

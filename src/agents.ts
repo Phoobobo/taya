@@ -111,6 +111,16 @@ export async function loadRoleSystemPrompt(home: string, role: string, profile: 
 /** Communication is how the assistant talks; delegation is how it puts work on other roles. */
 export const ASSISTANT_SKILLS = ["taya-herdr-communication", "taya-delegation"];
 
+/** Resolve prompt-template directories in user-over-package order, omitting missing paths. */
+export async function resolvePromptTemplates(home: string): Promise<string[]> {
+  const candidates = [
+    resolve(home, "prompt-templates"),
+    resolve(resourcesDir(), "prompt-templates"),
+  ];
+  const found = await Promise.all(candidates.map(exists));
+  return candidates.filter((_path, index) => found[index]);
+}
+
 /**
  * Map a profile's skill names to readable paths, user directory first. A name
  * that resolves nowhere is dropped rather than passed on — handing a harness a
