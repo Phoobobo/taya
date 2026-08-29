@@ -31,7 +31,7 @@ TAYA_HOME=/tmp/taya-profile node dist/cli.js --dry-run --yes
 
 ## Layout
 
-- `src/cli.ts` — subcommands: `init`, `workdir add`, `doctor`, `start` (default), `assistant`, `supervise`.
+- `src/cli.ts` — subcommands: `init`, `workdir add`, `doctor`, `start` (default), `assistant`, `agent`, `scheduler`.
 - `src/config/` — `~/.taya` layout, initialization, YAML load, path resolution.
 - `src/herdr/client.ts` — Herdr CLI wrapper (workspaces, named panes, `runInPane`).
 - `src/workboard/client.ts` — herdr-workboard CLI wrapper.
