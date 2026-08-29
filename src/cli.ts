@@ -20,6 +20,7 @@ import {
   composeAgentPrompt,
   loadAgentProfile,
   loadRoleSystemPrompt,
+  resolvePromptTemplates,
   resolveSkills,
   type StageContract,
 } from "./agents.js";
@@ -150,11 +151,11 @@ async function assistantCommand(commandArgs: string[]): Promise<void> {
   // wins and a deleted copy falls back instead of breaking the launch.
   const { paths, missing } = await resolveSkills(home, ASSISTANT_SKILLS);
   for (const name of missing) console.error(`taya: skill '${name}' not found; launching without it`);
+  const promptTemplates = await resolvePromptTemplates(home);
   const piArgs = [
     "--system-prompt", systemPrompt,
     ...paths.flatMap((path) => ["--skill", path]),
-    "--prompt-template", resolve(home, "prompt-templates"),
-    "--prompt-template", resolve(resourcesDir(), "prompt-templates"),
+    ...promptTemplates.flatMap((path) => ["--prompt-template", path]),
     "--name", "taya",
   ];
   const child = spawn("pi", piArgs, { cwd: workdir, stdio: "inherit", env: process.env });
