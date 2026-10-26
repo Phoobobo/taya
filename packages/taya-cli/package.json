@@ -1,0 +1,33 @@
+{
+  "name": "taya",
+  "version": "0.1.0",
+  "description": "A real engineering assistant powered by Pi and Herdr",
+  "type": "module",
+  "bin": {
+    "taya": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "resources",
+    "docs"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "dependencies": {
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  },
+  "license": "MIT"
+}
